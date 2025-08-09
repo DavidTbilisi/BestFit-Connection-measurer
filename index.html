@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connection measurer</title>
+<style>
+  :root {
+    --font-body: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', Arial, sans-serif;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.08);
+    --shadow-md: 0 2px 4px rgba(0,0,0,.08), 0 6px 14px -6px rgba(0,0,0,.15);
+    /* light theme defaults */
+    --color-bg: #f5f7fa;
+    --color-surface: #ffffff;
+    --color-border: #dfe3e8;
+    --color-text: #20252b;
+    --color-text-soft: #5a6572;
+    --color-accent: #2667ff;
+    --color-accent-hover: #1655e6;
+    --color-on-accent: #ffffff; /* new */
+    --color-danger: #d92d20;
+    --color-danger-bg: #fdecec;
+    --color-focus: #2667ff;
+    --gradient-accent: linear-gradient(135deg,#4e8cff,#2667ff);
+  }
+  .theme-dark {
+    --color-bg: #111418;
+    --color-surface: #1a1f25;
+    --color-border: #2a323b;
+    --color-text: #f2f5f8;
+    --color-text-soft: #99a3b0;
+    --color-accent: #5393ff;
+    --color-accent-hover: #3d7fe9;
+    --color-on-accent: #ffffff; /* ensures white text on blue */
+    --color-danger: #ff6154;
+    --color-danger-bg: #392020;
+    --gradient-accent: linear-gradient(135deg,#3d7fe9,#1f4cba);
+  }
+  .theme-highcontrast {
+    --color-bg: #000;
+    --color-surface: #000;
+    --color-border: #fff;
+    --color-text: #fff;
+    --color-text-soft: #d0d0d0;
+    --color-accent: #ffde00; /* vivid yellow */
+    --color-accent-hover: #ffb300; /* slightly deeper */
+    --color-on-accent: #000000; /* black text for readability */
+    --color-danger: #ff4d4d;
+    --color-danger-bg: #2d0000;
+    --gradient-accent: linear-gradient(135deg,#ffde00,#ffb300);
+  }
+  html, body { height:100%; }
+  body { font-family: var(--font-body); margin:0; background: var(--color-bg); color: var(--color-text); -webkit-font-smoothing: antialiased; }
+  h1 { margin:0; font-size: clamp(1.4rem,3vw,2.2rem); font-weight:600; background: var(--gradient-accent); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing:.5px; }
+  h3 { margin:.25rem 0 .75rem; font-weight:600; }
+  a { color: var(--color-accent); }
+  a:hover { color: var(--color-accent-hover); }
+  button, select { font: inherit; }
+  button { background: var(--color-accent); color: var(--color-on-accent); border: 1px solid var(--color-accent-hover); border-radius: var(--radius-sm); padding:.55rem .9rem; cursor:pointer; line-height:1; display:inline-flex; align-items:center; gap:.35rem; font-weight:500; box-shadow: var(--shadow-sm); transition: background .18s, transform .18s; }
+  button:hover { background: var(--color-accent-hover); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  .danger { background: var(--color-danger); border-color: var(--color-danger); }
+  .danger:hover { background: #b91d12; }
+  #app-shell { max-width: 1280px; margin: 0 auto; padding: clamp(.75rem,2vw,1.5rem); }
+  header { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+  .top-actions { display:flex; flex-wrap:wrap; gap:.55rem; }
+  .theme-select { background: var(--color-surface); color: var(--color-text); border:1px solid var(--color-border); border-radius: var(--radius-sm); padding:.5rem .65rem; box-shadow: var(--shadow-sm); }
+  #container { display:grid; gap:1.25rem; grid-template-columns: repeat(auto-fill,minmax(min(360px,100%),1fr)); align-items:start; }
+  #container.single-view { grid-template-columns: 1fr; }
+  .single-view .person-card.single-person { padding:clamp(1rem,2vw,2.25rem); }
+  .single-view .person-card.single-person h3 { font-size:clamp(1.1rem,2.2vw,1.6rem); }
+  .single-view .person-card.single-person .badge { top:1rem; right:1rem; font-size:.8rem; padding:.4rem .65rem; }
+  .single-view .person-card.single-person canvas { width:100% !important; max-width:900px; margin:0 auto; display:block; height:600px; max-height:600px; }
+  .card { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-md); padding:1rem 1.1rem 1.15rem; box-shadow: var(--shadow-sm); position:relative; overflow:hidden; }
+  .card:hover { box-shadow: var(--shadow-md); }
+  .person-card .edit-btn { opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s ease, transform .18s ease; transform:translateY(-4px); }
+  .person-card:hover .edit-btn { opacity:1; visibility:visible; pointer-events:auto; transform:translateY(0); }
+  .badge { position:absolute; top:.55rem; right:.6rem; background: var(--color-accent); color: var(--color-on-accent); font-size:.7rem; padding:.25rem .45rem; border-radius: 999px; letter-spacing:.5px; font-weight:600; box-shadow:0 0 0 2px var(--color-surface); }
+  .ideal-list { list-style:none; padding:0; margin:.5rem 0 0; }
+  .ideal-list li { display:flex; justify-content:space-between; gap:.75rem; padding:.35rem 0; border-bottom:1px dashed var(--color-border); font-size:.85rem; }
+  .ideal-list li:last-child { border-bottom:none; }
+  .subhead { font-size:.72rem; text-transform:uppercase; letter-spacing:1px; color: var(--color-text-soft); font-weight:500; margin:-.25rem 0 .75rem; }
+  .trait-form { display:grid; grid-template-columns: 1fr 70px 32px; gap:.45rem .6rem; margin-top:.5rem; }
+  .trait-form label { font-size:.6rem; text-transform:uppercase; letter-spacing:.5px; color: var(--color-text-soft); font-weight:600; line-height:1.1; }
+  .trait-form input { width:100%; padding:.4rem .45rem; border:1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); font-size:.8rem; }
+  .trait-form input:focus { outline:2px solid var(--color-focus); outline-offset:1px; }
+  .trait-form .del-trait { background: var(--color-danger-bg); color: var(--color-danger); border:1px solid var(--color-danger); font-weight:600; }
+  .trait-form .del-trait:hover { background: var(--color-danger); color:#fff; }
+  .new-trait-name { border:2px dashed var(--color-border); background: var(--color-surface); }
+  .add-btn { background: var(--color-accent); border:1px solid var(--color-accent-hover); font-weight:700; }
+  .form-actions { grid-column:1/-1; display:flex; gap:.6rem; justify-content:flex-end; margin-top:.5rem; }
+  .inline-status { font-size:.7rem; color: var(--color-text-soft); margin-left:.25rem; }
+  .full-span { grid-column:1 / -1; }
+  canvas { max-width:100%; height:auto !important; }
+  @media (max-width: 640px){
+    header { flex-direction:column; align-items:stretch; }
+    .top-actions { justify-content: center; }
+    .badge { font-size:.6rem; }
+    .trait-form { grid-template-columns: 1fr 60px 28px; }
+  }
+  /* Scrollbar theming (Webkit + Firefox) */
+  * { scrollbar-width: thin; scrollbar-color: var(--color-accent) var(--color-bg); }
+  *::-webkit-scrollbar { width:10px; }
+  *::-webkit-scrollbar-track { background: var(--color-bg); }
+  *::-webkit-scrollbar-thumb { background: var(--color-accent); border:2px solid var(--color-bg); border-radius:20px; }
+  *::-webkit-scrollbar-thumb:hover { background: var(--color-accent-hover); }
+  .person-edit-form { display:flex; flex-direction:column; gap:.55rem; max-height:380px; overflow:auto; padding-right:.25rem; }
+  .person-edit-form .trait-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+  .person-edit-form label { flex:1; font-size:.6rem; text-transform:uppercase; letter-spacing:.5px; color: var(--color-text-soft); font-weight:600; }
+  .person-edit-form input { width:80px; padding:.4rem .45rem; border:1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); font-size:.8rem; }
+  .person-edit-form input:focus { outline:2px solid var(--color-focus); outline-offset:1px; }
+</style>
+</head>
+<body>
+<div id="app-shell">
+<header>
+  <h1>Connection measurer</h1>
+  <div class="top-actions" role="toolbar" aria-label="Primary actions">
+    <button id="addPersonBtn" aria-label="Add Person">➕ Person</button>
+    <button id="addTraitBtn" aria-label="Add Trait">➕ Trait</button>
+    <button id="fetchUrlBtn" aria-label="Fetch Data from URL">🌐 Data URL</button>
+    <button id="fetchTraitsBtn" aria-label="Fetch Trait Suggestions">🌐 Traits URL</button>
+    <button id="exportBtn" aria-label="Export Data JSON">⬇️ Export</button>
+    <button id="importBtn" aria-label="Import Data JSON">⬆️ Import</button>
+    <label style="display:flex; align-items:center; gap:.35rem; font-size:.75rem; text-transform:uppercase; letter-spacing:.5px; color:var(--color-text-soft); font-weight:600;">
+      Theme
+      <select id="themeSelect" class="theme-select" aria-label="Select Theme">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="highcontrast">High Contrast</option>
+      </select>
+    </label>
+    <input type="file" id="importFile" accept="application/json" style="display:none" />
+  </div>
+</header>
+<div id="container" aria-live="polite"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+  // ...existing code replaced below with themed/UX enhanced version...
+  const defaultData = { ideal: 
+    { "Emotional Safety": 5, "Intellectual Stimulation": 5, "Humor Compatibility": 1, "Reliability / Consistency": 3, "Shared Goals / Values": 4, "Support in Challenges": 4.6, "Low Drama": 4, "Empathy": 5, "Mutual Respect": 5, "Shared Interests": 3 }, people: [ { name: "Person 1", traits: { "Emotional Safety": 5, "Intellectual Stimulation": 2, "Humor Compatibility": 1, "Reliability / Consistency": 2, "Shared Goals / Values": 3, "Support in Challenges": 0, "Low Drama": 3.5, "Empathy": 1, "Mutual Respect": 4, "Shared Interests": 3 }}, 
+    { name: "Person 2", traits: { "Emotional Safety": 3, "Intellectual Stimulation": 2, "Humor Compatibility": 4, "Reliability / Consistency": 3, "Shared Goals / Values": 1, "Support in Challenges": 4, "Low Drama": 3, "Empathy": 5, "Mutual Respect": 4, "Shared Interests": 3 }} ] };
+
+  // THEME HANDLING
+  const THEME_KEY = 'connectionMatcherTheme';
+  function applyTheme(theme){ document.documentElement.classList.remove('theme-dark','theme-highcontrast'); if(theme==='dark') document.documentElement.classList.add('theme-dark'); else if(theme==='highcontrast') document.documentElement.classList.add('theme-highcontrast'); }
+  function loadTheme(){ return localStorage.getItem(THEME_KEY) || 'light'; }
+  function saveTheme(t){ localStorage.setItem(THEME_KEY,t); }
+  const themeSelect = document.getElementById('themeSelect');
+  const initialTheme = loadTheme(); themeSelect.value = initialTheme; applyTheme(initialTheme);
+  themeSelect.onchange = () => { applyTheme(themeSelect.value); saveTheme(themeSelect.value); };
+
+  const STORAGE_KEY = 'connectionMatcherData';
+  const BUILTIN_TRAIT_SUGGESTIONS = [ 'Emotional Safety','Intellectual Stimulation','Humor Compatibility','Reliability / Consistency','Shared Goals / Values','Support in Challenges','Low Drama','Empathy','Mutual Respect','Shared Interests','Trustworthiness','Communication Quality','Active Listening','Growth Mindset','Conflict Resolution','Affection','Respect for Boundaries','Adaptability','Positivity','Integrity','Accountability','Kindness','Creativity','Curiosity','Financial Responsibility','Spontaneity','Physical Health Focus','Emotional Intelligence','Patience','Honesty','Playfulness','Generosity','Loyalty','Self Awareness' ];
+  const SUGGESTION_KEY = 'connectionMatcherCustomTraits';
+  function loadData(){ const raw = localStorage.getItem(STORAGE_KEY); if(!raw) return structuredClone(defaultData); try { return JSON.parse(raw); } catch { return structuredClone(defaultData);} }
+  function saveData(d){ localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+  function calcMatchPct(person, ideal){ const keys = Object.keys(ideal); let sum=0; keys.forEach(t=>{ const i=ideal[t]; const p = person.traits[t] ?? 0; sum += Math.min(p,i)/(i||1); }); return (sum/keys.length)*100; }
+  function makeNumberInput(value){ const inp = document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.min='0'; inp.max='5'; inp.value = value ?? 0; return inp; }
+  function loadCustomSuggestions(){ try { return JSON.parse(localStorage.getItem(SUGGESTION_KEY)) || []; } catch { return []; } }
+  function saveCustomSuggestions(list){ localStorage.setItem(SUGGESTION_KEY, JSON.stringify(list.slice(0,300))); }
+  function addSuggestionIfNew(name){ const lower = name.toLowerCase(); if(BUILTIN_TRAIT_SUGGESTIONS.some(b=> b.toLowerCase()===lower)) return; const custom = loadCustomSuggestions(); if(!custom.some(c=> c.toLowerCase()===lower)){ custom.push(name); saveCustomSuggestions(custom); } }
+  window._traitSuggestions = () => ({ builtin:BUILTIN_TRAIT_SUGGESTIONS, custom:loadCustomSuggestions() });
+
+  const params = new URLSearchParams(location.search); const personFilter = params.get('person');
+
+  function render(data){
+    const container = document.getElementById('container'); container.innerHTML='';
+    const traitKeys = Object.keys(data.ideal);
+    let ranked = data.people.map(p=>({ name:p.name, pct:+calcMatchPct(p,data.ideal).toFixed(1), person:p })).sort((a,b)=> b.pct - a.pct);
+    if(personFilter){ ranked = ranked.filter(r=> r.name.toLowerCase() === personFilter.toLowerCase()); }
+    container.classList.toggle('single-view', !!personFilter);
+    if(personFilter){ const back = document.createElement('div'); back.className='card'; const btn = document.createElement('button'); btn.textContent='← Back to All'; btn.onclick=()=>{ const u=new URL(location.href); u.searchParams.delete('person'); location.href=u.toString(); }; back.appendChild(btn); container.appendChild(back); }
+
+    // Summary bar chart card (skip if viewing single person to reduce noise?)
+    if(!personFilter){ const barCard = document.createElement('div'); barCard.className='card full-span'; const barTitle = document.createElement('h3'); barTitle.textContent = 'Connection Match (%)'; barCard.appendChild(barTitle); const barCanvas = document.createElement('canvas'); barCard.appendChild(barCanvas); container.appendChild(barCard); new Chart(barCanvas.getContext('2d'), { type:'bar', data:{ labels: ranked.map(r=>r.name), datasets:[{ label:'Match %', data: ranked.map(r=>r.pct), backgroundColor:'rgba(38,103,255,0.7)' }] }, options:{ responsive:true, plugins:{ legend:{display:false}, tooltip:{mode:'index', intersect:false} }, scales:{ y:{ beginAtZero:true, suggestedMax:100, ticks:{ callback:v=> v+'%' } } } } }); }
+
+    // Factory to build Ideal traits card (position depends on view mode)
+    function buildIdealCard(){
+      const idealCard = document.createElement('div'); idealCard.className = 'card';
+      const idealHeader = document.createElement('h3'); idealHeader.textContent = 'Ideal Traits'; idealCard.appendChild(idealHeader);
+      const sub = document.createElement('p'); sub.className='subhead'; sub.textContent='Edit, add, or delete weighted traits (0–5).'; idealCard.appendChild(sub);
+      const idealList = document.createElement('ul'); idealList.className='ideal-list';
+      traitKeys.forEach(t=>{ const li=document.createElement('li'); li.innerHTML = `<span>${t}</span><strong>${data.ideal[t]}</strong>`; idealList.appendChild(li); });
+      idealCard.appendChild(idealList);
+      const editIdealBtn = document.createElement('button'); editIdealBtn.textContent='Edit Ideal'; editIdealBtn.style.marginTop='.5rem'; idealCard.appendChild(editIdealBtn);
+
+      editIdealBtn.onclick = () => {
+        if(idealCard.dataset.editing) return; idealCard.dataset.editing='1'; editIdealBtn.disabled=true; idealList.remove(); sub.remove();
+        const form = document.createElement('form'); form.className='trait-form'; const inputs = {}; let currentOrder = [...traitKeys];
+        function addTraitRow(trait){ const label=document.createElement('label'); label.textContent=trait; label.dataset.trait=trait; const inp=makeNumberInput(data.ideal[trait]); inputs[trait]=inp; const del=document.createElement('button'); del.type='button'; del.textContent='×'; del.className='del-trait'; del.title='Delete trait'; del.onclick=()=>{ if(!confirm(`Delete trait "${trait}"?`)) return; delete data.ideal[trait]; delete inputs[trait]; data.people.forEach(p=> delete p.traits[trait]); label.remove(); inp.remove(); del.remove(); currentOrder = currentOrder.filter(t=> t!==trait); updateDatalist(); }; form.appendChild(label); form.appendChild(inp); form.appendChild(del); }
+        currentOrder.forEach(addTraitRow);
+        const datalist=document.createElement('datalist'); datalist.id='traitSuggestions';
+        function updateDatalist(){ datalist.innerHTML=''; const existingLower = new Set(Object.keys(data.ideal).map(t=>t.toLowerCase())); const merged=[...BUILTIN_TRAIT_SUGGESTIONS, ...loadCustomSuggestions()]; const seen=new Set(); merged.forEach(s=>{ const low=s.toLowerCase(); if(seen.has(low)) return; seen.add(low); if(!existingLower.has(low)){ const opt=document.createElement('option'); opt.value=s; datalist.appendChild(opt); } }); }
+        updateDatalist(); form.appendChild(datalist);
+        const nameInput=document.createElement('input'); nameInput.type='text'; nameInput.placeholder='New trait name'; nameInput.className='new-trait-name'; nameInput.setAttribute('list','traitSuggestions'); const valueInput=makeNumberInput(3); valueInput.value=3; const addBtn=document.createElement('button'); addBtn.type='button'; addBtn.textContent='+'; addBtn.className='add-btn'; addBtn.title='Add trait'; addBtn.onclick=()=>{ let newName = nameInput.value.trim(); if(!newName){ nameInput.focus(); return; } if(data.ideal[newName]!==undefined){ alert('Trait exists'); return; } let v=parseFloat(valueInput.value); if(isNaN(v)||v<0) v=0; if(v>5)v=5; data.ideal[newName]=v; data.people.forEach(p=> p.traits[newName]=0); addSuggestionIfNew(newName); currentOrder.push(newName); addTraitRow(newName); nameInput.value=''; valueInput.value=3; updateDatalist(); };
+        form.appendChild(nameInput); form.appendChild(valueInput); form.appendChild(addBtn);
+        const actions=document.createElement('div'); actions.className='form-actions'; const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Cancel'; const save=document.createElement('button'); save.type='submit'; save.textContent='Save'; actions.appendChild(cancel); actions.appendChild(save); form.appendChild(actions); idealCard.appendChild(form);
+        form.onsubmit = e => { e.preventDefault(); Object.keys(inputs).forEach(trait => { let v=parseFloat(inputs[trait].value); if(isNaN(v)||v<0) v=0; if(v>5)v=5; data.ideal[trait]=v; }); saveData(data); render(data); };
+        cancel.onclick = () => render(loadData());
+      };
+      return idealCard;
+    }
+
+    // In multi view show ideal first; in single view show person first then ideal beneath
+    if(!personFilter){ container.appendChild(buildIdealCard()); }
+
+    // Person cards
+    ranked.forEach(({name, person, pct})=>{ const wrap=document.createElement('div'); wrap.className='person-card card'+(personFilter?' single-person full-span':''); const badge=document.createElement('div'); badge.className='badge'; badge.textContent = pct + '%'; wrap.appendChild(badge); const h=document.createElement('h3'); const link=document.createElement('a'); link.href='?person='+encodeURIComponent(name); link.textContent = name + ' vs Ideal'; link.title='Open '+name+' only'; link.style.textDecoration='none'; h.appendChild(link); wrap.appendChild(h); const btnRow=document.createElement('div'); btnRow.style.textAlign='right'; btnRow.style.marginBottom='.25rem'; const editBtn=document.createElement('button'); editBtn.type='button'; editBtn.textContent='Edit'; editBtn.className='edit-btn'; editBtn.style.fontSize='.7rem'; btnRow.appendChild(editBtn); wrap.appendChild(btnRow); const radarCanvas=document.createElement('canvas'); wrap.appendChild(radarCanvas); container.appendChild(wrap); const idealData = traitKeys.map(t=>data.ideal[t]); const personData= traitKeys.map(t=> person.traits[t] ?? 0); const baseOptions = { responsive:true, elements:{ line:{ borderWidth:2 } }, plugins:{ legend:{ position:'top' } }, scales:{ r:{ min:0, max:5, ticks:{ stepSize:1, backdropColor:'transparent' }, grid:{ color:'rgba(100,100,100,.25)' } } } };
+      new Chart(radarCanvas.getContext('2d'), { type:'radar', data:{ labels: traitKeys, datasets:[ { label:'Ideal', data:idealData, borderColor:'rgba(255,99,132,.7)', backgroundColor:'rgba(255,99,132,.15)', fill:true }, { label:name, data:personData, borderColor:'rgba(38,103,255,.8)', backgroundColor:'rgba(38,103,255,.2)', fill:true } ] }, options: baseOptions });
+      editBtn.onclick = () => { if(wrap.dataset.editing) return; wrap.dataset.editing='1'; wrap.classList.add('editing'); const existingCanvas = wrap.querySelector('canvas'); if(existingCanvas){ const ctx=existingCanvas.getContext('2d'); if(ctx && ctx.chart){ ctx.chart.destroy(); } existingCanvas.remove(); } const form=document.createElement('form'); form.className='person-edit-form'; const inputs={}; traitKeys.forEach(trait=>{ const row=document.createElement('div'); row.className='trait-row'; const label=document.createElement('label'); label.textContent=trait; const inp=makeNumberInput(person.traits[trait]); inputs[trait]=inp; row.appendChild(label); row.appendChild(inp); form.appendChild(row); }); const actions=document.createElement('div'); actions.className='form-actions'; const cancelBtn=document.createElement('button'); cancelBtn.type='button'; cancelBtn.textContent='Cancel'; const saveBtn=document.createElement('button'); saveBtn.type='submit'; saveBtn.textContent='Save'; actions.appendChild(cancelBtn); actions.appendChild(saveBtn); form.appendChild(actions); wrap.appendChild(form); form.onsubmit=e=>{ e.preventDefault(); traitKeys.forEach(t=>{ let v=parseFloat(inputs[t].value); if(isNaN(v)||v<0)v=0; if(v>5)v=5; person.traits[t]=v; }); saveData(data); render(data); }; cancelBtn.onclick=()=>render(loadData()); };
+    });
+
+    if(personFilter){ container.appendChild(buildIdealCard()); }
+  }
+
+  // Data manipulation helpers (prompts retained for now; could be replaced with modals)
+  function addTrait(){ const data=loadData(); let name=prompt('Enter new trait name:'); if(!name) return; name=name.trim(); if(data.ideal[name] !== undefined){ alert('Trait already exists'); return; } let valStr=prompt('Enter ideal value (0-5):','3'); if(valStr===null) return; let val=parseFloat(valStr); if(isNaN(val)||val<0) val=0; if(val>5) val=5; data.ideal[name]=val; data.people.forEach(p=>{ p.traits[name]=0; }); addSuggestionIfNew(name); saveData(data); render(data); }
+  function addPerson(){ const data=loadData(); let name=prompt('Enter person name:'); if(!name) return; name=name.trim(); if(!name) return; if(data.people.some(p=> p.name.toLowerCase()===name.toLowerCase())){ alert('Name exists'); return; } const traits={}; Object.keys(data.ideal).forEach(t=> traits[t]=0); data.people.push({ name, traits }); saveData(data); render(data); }
+  function exportData(data){ const json=JSON.stringify(data,null,2); const blob=new Blob([json],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='connection_matcher_data.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
+  function importData(file){ const reader=new FileReader(); reader.onload=e=>{ try { const json=JSON.parse(e.target.result); if(!json.ideal || !json.people) throw new Error('Invalid format'); saveData(json); render(json); alert('Data imported'); } catch(err){ alert('Import error: '+err.message); } }; reader.readAsText(file); }
+  async function fetchJson(url){ const res=await fetch(url,{ headers:{'Accept':'application/json,text/plain;q=0.8,*/*;q=0.5'} }); if(!res.ok) throw new Error(res.status+' '+res.statusText); const ct=res.headers.get('content-type')||''; if(ct.includes('application/json')) return await res.json(); const txt=await res.text(); try { return JSON.parse(txt); } catch { return txt; } }
+  function validateDataShape(obj){ return !!(obj && typeof obj==='object' && obj.ideal && typeof obj.ideal==='object' && Array.isArray(obj.people)); }
+  async function fetchRemoteData(){ const url=prompt('Enter URL returning JSON with { ideal, people }'); if(!url) return; try { const incoming=await fetchJson(url.trim()); if(!validateDataShape(incoming)){ alert('Invalid structure'); return; } const replace=confirm('Replace current data (OK) or Merge (Cancel)?'); let data=loadData(); if(replace){ data=incoming; } else { Object.entries(incoming.ideal).forEach(([k,v])=>{ data.ideal[k]=v; data.people.forEach(p=>{ if(p.traits[k]===undefined) p.traits[k]=0; }); }); incoming.people.forEach(np=>{ if(!data.people.some(p=> p.name.toLowerCase()===np.name.toLowerCase())){ Object.keys(data.ideal).forEach(t=>{ if(np.traits[t]===undefined) np.traits[t]=0; }); data.people.push(np); } }); } if(replace){ data.people.forEach(p=>{ Object.keys(data.ideal).forEach(t=>{ if(p.traits[t]===undefined) p.traits[t]=0; }); }); } saveData(data); render(data); alert('Data loaded'); } catch(err){ alert('Fetch failed: '+err.message); } }
+  async function fetchRemoteTraits(){ const url=prompt('Enter URL returning trait list (JSON array or newline text)'); if(!url) return; try { const payload=await fetchJson(url.trim()); let list=[]; if(Array.isArray(payload)) list=payload.filter(x=> typeof x==='string'); else if(typeof payload==='string') list=payload.split(/\r?\n/).map(s=>s.trim()).filter(Boolean); else if(payload.traits && Array.isArray(payload.traits)) list=payload.traits.filter(x=> typeof x==='string'); else { alert('Unrecognized format'); return; } if(!list.length){ alert('No traits'); return; } list.slice(0,300).forEach(addSuggestionIfNew); alert('Imported '+list.length+' trait suggestions.'); } catch(err){ alert('Fetch failed: '+err.message); } }
+
+  // Event binding
+  document.getElementById('exportBtn').onclick = ()=> exportData(loadData());
+  const importFileInput=document.getElementById('importFile'); document.getElementById('importBtn').onclick=()=>{ importFileInput.value=null; importFileInput.click(); }; importFileInput.onchange=e=>{ if(!e.target.files.length) return; importData(e.target.files[0]); };
+  document.getElementById('addTraitBtn').onclick=addTrait; document.getElementById('addPersonBtn').onclick=addPerson; document.getElementById('fetchUrlBtn').onclick=fetchRemoteData; document.getElementById('fetchTraitsBtn').onclick=fetchRemoteTraits;
+
+  // Initial render
+  render(loadData());
+})();
+</script>
+</body>
+</html>
