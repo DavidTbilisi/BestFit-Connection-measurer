@@ -40,7 +40,7 @@ export function render(data, personFilter){
     const idealHeader = document.createElement('h3'); idealHeader.textContent = 'Ideal Traits'; idealCard.appendChild(idealHeader);
     const sub = document.createElement('p'); sub.className='subhead'; sub.textContent='Edit, add, or delete weighted traits (0–5).'; idealCard.appendChild(sub);
     const idealList = document.createElement('ul'); idealList.className='ideal-list';
-    traitKeys.forEach(t=>{ const li=document.createElement('li'); li.innerHTML = `<span>${t}</span><strong>${data.ideal[t]}</strong>`; idealList.appendChild(li); });
+  traitKeys.forEach(t=>{ const li=document.createElement('li'); li.innerHTML = `<span class="trait-name">${t}</span><span class="leader" aria-hidden="true"></span><strong class="trait-value">${data.ideal[t]}</strong>`; idealList.appendChild(li); });
     idealCard.appendChild(idealList);
     const editIdealBtn = document.createElement('button'); editIdealBtn.textContent='Edit Ideal'; editIdealBtn.style.marginTop='.5rem'; idealCard.appendChild(editIdealBtn);
 
@@ -69,7 +69,22 @@ export function render(data, personFilter){
     const badge=document.createElement('div'); badge.className='badge'; badge.textContent = pct + '%'; wrap.appendChild(badge);
     const h=document.createElement('h3');
     const link=document.createElement('a'); link.href='?person='+encodeURIComponent(name); link.textContent = name + ' vs Ideal'; link.title='Open '+name+' only'; link.style.textDecoration='none'; h.appendChild(link); wrap.appendChild(h);
-    const btnRow=document.createElement('div'); btnRow.style.textAlign='right'; btnRow.style.marginBottom='.25rem'; const editBtn=document.createElement('button'); editBtn.type='button'; editBtn.textContent='Edit'; editBtn.className='edit-btn'; editBtn.style.fontSize='.7rem'; btnRow.appendChild(editBtn); wrap.appendChild(btnRow);
+    const btnRow=document.createElement('div'); btnRow.style.textAlign='right'; btnRow.style.marginBottom='.25rem';
+    const editBtn=document.createElement('button'); editBtn.type='button'; editBtn.textContent='Edit'; editBtn.className='edit-btn'; editBtn.style.fontSize='.7rem'; btnRow.appendChild(editBtn);
+  const delBtn=document.createElement('button'); delBtn.type='button'; delBtn.textContent='Delete'; delBtn.className='danger edit-btn'; delBtn.style.fontSize='.7rem'; delBtn.style.marginLeft='.4rem'; btnRow.appendChild(delBtn);
+    delBtn.onclick=()=>{
+      if(!confirm(`Delete person "${name}"? This cannot be undone.`)) return;
+      const idx=data.people.findIndex(p=> p.name===name);
+      if(idx>-1){ data.people.splice(idx,1); saveData(data); }
+      // if we were in single view of this person, go back to list
+      if(personFilter && personFilter.toLowerCase()===name.toLowerCase()){
+        const u=new URL(location.href); u.searchParams.delete('person'); history.replaceState(null,'',u.toString());
+        render(data, null);
+      } else {
+        render(data, personFilter);
+      }
+    };
+    wrap.appendChild(btnRow);
     const radarCanvas=document.createElement('canvas'); wrap.appendChild(radarCanvas); container.appendChild(wrap);
     const idealData = traitKeys.map(t=>data.ideal[t]);
     const personData= traitKeys.map(t=> person.traits[t] ?? 0);
@@ -78,12 +93,35 @@ export function render(data, personFilter){
 
     editBtn.onclick = () => {
       if(wrap.dataset.editing) return; wrap.dataset.editing='1'; wrap.classList.add('editing');
-      const existingCanvas = wrap.querySelector('canvas');
-      if(existingCanvas){ existingCanvas.remove(); }
+      const existingCanvas = wrap.querySelector('canvas'); if(existingCanvas){ existingCanvas.remove(); }
       const form=document.createElement('form'); form.className='person-edit-form'; const inputs={};
+      // Name field
+      const nameRow=document.createElement('div'); nameRow.className='trait-row';
+      const nameLabel=document.createElement('label'); nameLabel.textContent='Name'; nameLabel.style.fontWeight='600';
+      const nameInput=document.createElement('input'); nameInput.type='text'; nameInput.value=person.name; nameInput.style.width='160px';
+      nameRow.appendChild(nameLabel); nameRow.appendChild(nameInput); form.appendChild(nameRow);
+      // Trait fields
       traitKeys.forEach(trait=>{ const row=document.createElement('div'); row.className='trait-row'; const label=document.createElement('label'); label.textContent=trait; const inp=makeNumberInput(person.traits[trait]); inputs[trait]=inp; row.appendChild(label); row.appendChild(inp); form.appendChild(row); });
       const actions=document.createElement('div'); actions.className='form-actions'; const cancelBtn=document.createElement('button'); cancelBtn.type='button'; cancelBtn.textContent='Cancel'; const saveBtn=document.createElement('button'); saveBtn.type='submit'; saveBtn.textContent='Save'; actions.appendChild(cancelBtn); actions.appendChild(saveBtn); form.appendChild(actions); wrap.appendChild(form);
-      form.onsubmit=e=>{ e.preventDefault(); traitKeys.forEach(t=>{ let v=parseFloat(inputs[t].value); if(isNaN(v)||v<0)v=0; if(v>5)v=5; person.traits[t]=v; }); saveData(data); render(data, personFilter); };
+      form.onsubmit=e=>{ e.preventDefault();
+        // rename validation
+        const newName=nameInput.value.trim();
+        if(!newName){ alert('Name required'); nameInput.focus(); return; }
+        const lowerNew=newName.toLowerCase();
+        if(lowerNew!==person.name.toLowerCase() && data.people.some(p=> p.name.toLowerCase()===lowerNew)){
+          alert('Another person already has that name'); return;
+        }
+        person.name=newName;
+        traitKeys.forEach(t=>{ let v=parseFloat(inputs[t].value); if(isNaN(v)||v<0)v=0; if(v>5)v=5; person.traits[t]=v; });
+        saveData(data);
+        // if we were single view and name changed, update URL param
+        if(personFilter){
+          const u=new URL(location.href); u.searchParams.set('person', encodeURIComponent(newName)); history.replaceState(null,'',u.toString());
+          render(data, newName);
+        } else {
+          render(data, personFilter);
+        }
+      };
       cancelBtn.onclick=()=>render(loadData(), personFilter);
     };
   });

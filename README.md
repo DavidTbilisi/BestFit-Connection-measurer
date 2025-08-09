@@ -8,6 +8,7 @@ Single‑page, client‑side tool to compare how different people align with an 
 - Radar charts per person & overall match bar chart
 - Editable Ideal traits (add / delete / reorder implicitly by recreation)
 - Add people; edit their trait values inline
+ - Add & delete people; edit their trait values inline
 - Autocomplete trait suggestions (built‑in + persisted custom)
 - Import remote data (merge or replace) and remote trait suggestion lists
 - LocalStorage persistence (data, custom suggestions, theme)
@@ -76,6 +77,7 @@ Use the Back button in the UI to return to all.
 - Improved accessibility audit (ARIA labels per input)
 - Chart color adaptation per theme
 - Undo / history for edits
+ - Bulk delete / reorder people
 
 ## Tech Stack
 - Vanilla HTML5 / CSS3 / ES2023
